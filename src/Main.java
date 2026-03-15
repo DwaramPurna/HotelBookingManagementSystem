@@ -3,12 +3,12 @@ import java.util.Map;
 
 /**
  * Hotel Booking Management System
- * Combined Use Cases 1, 2, and 3
+ * Combined Use Cases 1, 2, 3, and 4
  * @author DwaramPurna
- * @version 3.0
+ * @version 4.0
  */
 
-// --- UC2: Domain Modeling (Inheritance & Abstraction) ---
+// --- UC2: Domain Modeling (Room Hierarchy) ---
 abstract class Room {
     protected String roomType;
     protected double price;
@@ -18,28 +18,37 @@ abstract class Room {
         this.price = price;
     }
 
+    public String getRoomType() { return roomType; }
+    public double getPrice() { return price; }
+
     public abstract void displayDetails();
 }
 
 class SingleRoom extends Room {
     public SingleRoom() { super("Single Room", 2000.0); }
     @Override
-    public void displayDetails() { System.out.println("Type: " + roomType + " | Price: " + price); }
+    public void displayDetails() {
+        System.out.println("Type: " + roomType + " | Price: " + price + " | Features: Single Bed, Wifi");
+    }
 }
 
 class DoubleRoom extends Room {
     public DoubleRoom() { super("Double Room", 3500.0); }
     @Override
-    public void displayDetails() { System.out.println("Type: " + roomType + " | Price: " + price); }
+    public void displayDetails() {
+        System.out.println("Type: " + roomType + " | Price: " + price + " | Features: Queen Bed, AC, Wifi");
+    }
 }
 
 class SuiteRoom extends Room {
     public SuiteRoom() { super("Suite Room", 6000.0); }
     @Override
-    public void displayDetails() { System.out.println("Type: " + roomType + " | Price: " + price); }
+    public void displayDetails() {
+        System.out.println("Type: " + roomType + " | Price: " + price + " | Features: King Bed, Mini Bar, Balcony");
+    }
 }
 
-// --- UC3: Centralized Inventory Management (HashMap) ---
+// --- UC3: Centralized Inventory Manager ---
 class RoomInventory {
     private Map<String, Integer> inventory = new HashMap<>();
 
@@ -47,10 +56,37 @@ class RoomInventory {
         inventory.put(type, count);
     }
 
-    public void displayInventory() {
-        System.out.println("\n--- UC3: Centralized Room Inventory ---");
-        for (Map.Entry<String, Integer> entry : inventory.entrySet()) {
-            System.out.println(entry.getKey() + " Availability: " + entry.getValue());
+    public int getAvailability(String type) {
+        return inventory.getOrDefault(type, 0);
+    }
+
+    public Map<String, Integer> getAllInventory() {
+        return inventory;
+    }
+}
+
+// --- UC4: Room Search Service (Read-Only) ---
+class SearchService {
+    public void searchAvailableRooms(RoomInventory inventory, Map<String, Room> roomDetails) {
+        System.out.println("\n--- UC4: Search Results (Available Rooms Only) ---");
+        boolean found = false;
+
+        for (String type : inventory.getAllInventory().keySet()) {
+            int count = inventory.getAvailability(type);
+
+            // Filter: Only show rooms with availability > 0
+            if (count > 0) {
+                Room details = roomDetails.get(type);
+                if (details != null) {
+                    System.out.print("[" + count + " Left] ");
+                    details.displayDetails();
+                    found = true;
+                }
+            }
+        }
+
+        if (!found) {
+            System.out.println("No rooms available at the moment.");
         }
     }
 }
@@ -58,30 +94,31 @@ class RoomInventory {
 // --- Main Application Entry Point ---
 public class Main {
     public static void main(String[] args) {
-        // UC1: Basic App Startup
+        // UC1: Startup
         System.out.println("Welcome to Book My Stay App");
         System.out.println("Hotel Booking Management System Starting...");
         System.out.println("-------------------------------------------");
 
-        // UC2: Room Object Initialization & Polymorphism
-        System.out.println("--- UC2: Room Details ---");
-        Room s = new SingleRoom();
-        Room d = new DoubleRoom();
-        Room st = new SuiteRoom();
-
-        s.displayDetails();
-        d.displayDetails();
-        st.displayDetails();
-
-        // UC3: Inventory Setup using HashMap
+        // UC2 & UC3: Data Setup
         RoomInventory hotelInventory = new RoomInventory();
+        Map<String, Room> roomMap = new HashMap<>();
+
+        // Initialize Rooms
+        roomMap.put("Single Room", new SingleRoom());
+        roomMap.put("Double Room", new DoubleRoom());
+        roomMap.put("Suite Room", new SuiteRoom());
+
+        // Initialize Inventory (UC3)
         hotelInventory.addRoomType("Single Room", 5);
-        hotelInventory.addRoomType("Double Room", 3);
+        hotelInventory.addRoomType("Double Room", 0); // Set to 0 to test UC4 filter
         hotelInventory.addRoomType("Suite Room", 2);
 
-        hotelInventory.displayInventory();
+        // UC4: Perform Search (Read-Only Access)
+        SearchService searchService = new SearchService();
+        searchService.searchAvailableRooms(hotelInventory, roomMap);
 
         System.out.println("-------------------------------------------");
-        System.out.println("Use Cases 1, 2, and 3 executed successfully.");
+        System.out.println("UC4: Search operation performed without state mutation.");
+        System.out.println("Use Case 4 completed successfully.");
     }
 }
