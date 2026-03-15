@@ -2,33 +2,22 @@ import java.util.*;
 
 /**
  * Hotel Booking Management System
- * Combined Use Cases 1-9
+ * Combined Use Cases 1-10
  * @author DwaramPurna
- * @version 9.0
+ * @version 10.0
  */
 
 // --- UC9: Custom Exceptions ---
-class InvalidRoomException extends Exception {
-    public InvalidRoomException(String message) { super(message); }
-}
+class InvalidRoomException extends Exception { public InvalidRoomException(String m) { super(m); } }
+class InsufficientInventoryException extends Exception { public InsufficientInventoryException(String m) { super(m); } }
+class ReservationNotFoundException extends Exception { public ReservationNotFoundException(String m) { super(m); } }
 
-class InsufficientInventoryException extends Exception {
-    public InsufficientInventoryException(String message) { super(message); }
-}
-
-// --- UC2, UC5, UC7: Models ---
-class AddOnService {
-    private String name;
-    private double cost;
-    public AddOnService(String name, double cost) { this.name = name; this.cost = cost; }
-    @Override
-    public String toString() { return name + " (Rs. " + cost + ")"; }
-}
-
+// --- UC5 & UC6: Models ---
 class Reservation {
     private String guestName;
     private String requestedRoomType;
     private String confirmedRoomID;
+    private boolean isCancelled = false;
 
     public Reservation(String guestName, String requestedRoomType) {
         this.guestName = guestName;
@@ -38,90 +27,104 @@ class Reservation {
     public String getGuestName() { return guestName; }
     public String getRequestedRoomType() { return requestedRoomType; }
     public void setConfirmedRoomID(String id) { this.confirmedRoomID = id; }
-    @Override
-    public String toString() { return "Guest: " + guestName + " | Room: " + confirmedRoomID + " (" + requestedRoomType + ")"; }
-}
+    public String getConfirmedRoomID() { return confirmedRoomID; }
+    public void cancel() { this.isCancelled = true; }
+    public boolean isCancelled() { return isCancelled; }
 
-// --- UC8: Reporting ---
-class ReportingService {
-    private List<Reservation> bookingHistory = new ArrayList<>();
-    public void recordBooking(Reservation res) { bookingHistory.add(res); }
-    public void generateAdminReport() {
-        System.out.println("\n--- UC9: ADMIN HISTORY REPORT ---");
-        for (int i = 0; i < bookingHistory.size(); i++) {
-            System.out.println((i + 1) + ". " + bookingHistory.get(i));
-        }
+    @Override
+    public String toString() {
+        return "Guest: " + guestName + " | Room: " + (isCancelled ? "CANCELLED" : confirmedRoomID);
     }
 }
 
-// --- Hotel Manager (The Controller with UC9 Validation) ---
+// --- UC10: Hotel Manager with Cancellation & Rollback ---
 class HotelManager {
     private Map<String, Integer> inventory = new HashMap<>();
     private Map<String, Set<String>> allocatedRooms = new HashMap<>();
-    private ReportingService reportService = new ReportingService();
+    private List<Reservation> bookingHistory = new ArrayList<>();
+
+    // UC10: Stack for Rollback (LIFO)
+    private Stack<String> rollbackStack = new Stack<>();
 
     public void addRoomType(String type, int count) {
         inventory.put(type, count);
         allocatedRooms.put(type, new HashSet<>());
     }
 
-    // UC9: Method with structured validation and exceptions
     public void processBooking(Reservation res) throws InvalidRoomException, InsufficientInventoryException {
         String type = res.getRequestedRoomType();
+        if (!inventory.containsKey(type)) throw new InvalidRoomException("Invalid Type: " + type);
 
-        // 1. Validate Room Type (Input Validation)
-        if (!inventory.containsKey(type)) {
-            throw new InvalidRoomException("Error: Room type '" + type + "' does not exist in our system.");
-        }
+        int count = inventory.get(type);
+        if (count <= 0) throw new InsufficientInventoryException("Sold out: " + type);
 
-        // 2. Validate Inventory (State Guarding)
-        int currentCount = inventory.get(type);
-        if (currentCount <= 0) {
-            throw new InsufficientInventoryException("Error: No " + type + "s available for " + res.getGuestName() + ".");
-        }
-
-        // 3. Allocation logic (The "Happy Path")
-        String roomID = type.substring(0, 1).toUpperCase() + (100 + currentCount);
+        String roomID = type.substring(0, 1).toUpperCase() + (100 + count);
         if (allocatedRooms.get(type).add(roomID)) {
-            inventory.put(type, currentCount - 1);
+            inventory.put(type, count - 1);
             res.setConfirmedRoomID(roomID);
-            reportService.recordBooking(res);
-            System.out.println("SUCCESS: " + res.getGuestName() + " booked " + roomID);
+            bookingHistory.add(res);
+            System.out.println("SUCCESS: " + res.getGuestName() + " assigned " + roomID);
         }
     }
 
-    public ReportingService getReportService() { return reportService; }
+    // UC10: Cancellation Logic (Inventory Rollback)
+    public void cancelBooking(Reservation res) throws ReservationNotFoundException {
+        if (res == null || res.getConfirmedRoomID() == null || res.isCancelled()) {
+            throw new ReservationNotFoundException("Error: Valid confirmed reservation not found for cancellation.");
+        }
+
+        String roomID = res.getConfirmedRoomID();
+        String type = res.getRequestedRoomType();
+
+        // 1. Record in Rollback Stack
+        rollbackStack.push(roomID);
+
+        // 2. Restore Inventory
+        inventory.put(type, inventory.get(type) + 1);
+
+        // 3. Update State
+        allocatedRooms.get(type).remove(roomID);
+        res.cancel();
+
+        System.out.println("CANCELLED: Room " + roomID + " is now vacant. Inventory restored for " + type);
+    }
+
+    public void displayStatus() {
+        System.out.println("\n--- UC10: SYSTEM STATUS ---");
+        System.out.println("Current Inventory: " + inventory);
+        System.out.println("Recent Rollbacks (LIFO): " + rollbackStack);
+        System.out.println("History: " + bookingHistory);
+    }
 }
 
 // --- Main Entry Point ---
 public class Main {
     public static void main(String[] args) {
-        System.out.println("Hotel Booking Management System v9.0");
+        System.out.println("Hotel Booking Management System v10.0");
         System.out.println("-------------------------------------------");
 
         HotelManager manager = new HotelManager();
-        manager.addRoomType("Single Room", 1); // Only 1 room available
+        manager.addRoomType("Single Room", 2);
 
-        // UC9: Testing different scenarios with Try-Catch
-        List<Reservation> requests = Arrays.asList(
-                new Reservation("Alice", "Single Room"),    // Valid
-                new Reservation("Bob", "Single Room"),      // Should trigger InsufficientInventory
-                new Reservation("Charlie", "Penthouse")     // Should trigger InvalidRoom
-        );
+        try {
+            // 1. Make two bookings
+            Reservation res1 = new Reservation("Alice", "Single Room");
+            Reservation res2 = new Reservation("Bob", "Single Room");
+            manager.processBooking(res1);
+            manager.processBooking(res2);
 
-        for (Reservation res : requests) {
-            try {
-                System.out.println("\nProcessing request for: " + res.getGuestName());
-                manager.processBooking(res);
-            } catch (InvalidRoomException | InsufficientInventoryException e) {
-                // Graceful Failure Handling
-                System.err.println("VALIDATION FAILED: " + e.getMessage());
-            } catch (Exception e) {
-                System.err.println("Unexpected Error: " + e.getMessage());
-            }
+            // 2. Cancel Alice's booking (Rollback)
+            System.out.println("\n--- Initiating Cancellation ---");
+            manager.cancelBooking(res1);
+
+            // 3. Try to cancel same booking again (Should fail)
+            manager.cancelBooking(res1);
+
+        } catch (Exception e) {
+            System.err.println("CANCELLATION ERROR: " + e.getMessage());
         }
 
-        manager.getReportService().generateAdminReport();
-        System.out.println("\nUse Case 9: Error handling and validation complete.");
+        manager.displayStatus();
+        System.out.println("\nUse Case 10: Cancellation & Rollback complete.");
     }
 }
