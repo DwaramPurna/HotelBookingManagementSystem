@@ -1,14 +1,16 @@
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.Map;
+import java.util.Queue;
 
 /**
  * Hotel Booking Management System
- * Combined Use Cases 1, 2, 3, and 4
+ * Combined Use Cases 1, 2, 3, 4, and 5
  * @author DwaramPurna
- * @version 4.0
+ * @version 5.0
  */
 
-// --- UC2: Domain Modeling (Room Hierarchy) ---
+// --- UC2: Domain Modeling ---
 abstract class Room {
     protected String roomType;
     protected double price;
@@ -28,7 +30,7 @@ class SingleRoom extends Room {
     public SingleRoom() { super("Single Room", 2000.0); }
     @Override
     public void displayDetails() {
-        System.out.println("Type: " + roomType + " | Price: " + price + " | Features: Single Bed, Wifi");
+        System.out.println("Type: " + roomType + " | Price: " + price);
     }
 }
 
@@ -36,19 +38,27 @@ class DoubleRoom extends Room {
     public DoubleRoom() { super("Double Room", 3500.0); }
     @Override
     public void displayDetails() {
-        System.out.println("Type: " + roomType + " | Price: " + price + " | Features: Queen Bed, AC, Wifi");
+        System.out.println("Type: " + roomType + " | Price: " + price);
     }
 }
 
-class SuiteRoom extends Room {
-    public SuiteRoom() { super("Suite Room", 6000.0); }
+// --- UC5: Reservation Model (The Guest's Intent) ---
+class Reservation {
+    private String guestName;
+    private String requestedRoomType;
+
+    public Reservation(String guestName, String requestedRoomType) {
+        this.guestName = guestName;
+        this.requestedRoomType = requestedRoomType;
+    }
+
     @Override
-    public void displayDetails() {
-        System.out.println("Type: " + roomType + " | Price: " + price + " | Features: King Bed, Mini Bar, Balcony");
+    public String toString() {
+        return "Request from " + guestName + " for " + requestedRoomType;
     }
 }
 
-// --- UC3: Centralized Inventory Manager ---
+// --- UC3: Inventory Manager ---
 class RoomInventory {
     private Map<String, Integer> inventory = new HashMap<>();
 
@@ -65,28 +75,35 @@ class RoomInventory {
     }
 }
 
-// --- UC4: Room Search Service (Read-Only) ---
+// --- UC4: Search Service ---
 class SearchService {
     public void searchAvailableRooms(RoomInventory inventory, Map<String, Room> roomDetails) {
-        System.out.println("\n--- UC4: Search Results (Available Rooms Only) ---");
-        boolean found = false;
-
+        System.out.println("\n--- UC4: Search Results ---");
         for (String type : inventory.getAllInventory().keySet()) {
-            int count = inventory.getAvailability(type);
-
-            // Filter: Only show rooms with availability > 0
-            if (count > 0) {
-                Room details = roomDetails.get(type);
-                if (details != null) {
-                    System.out.print("[" + count + " Left] ");
-                    details.displayDetails();
-                    found = true;
-                }
+            if (inventory.getAvailability(type) > 0) {
+                roomDetails.get(type).displayDetails();
             }
         }
+    }
+}
 
-        if (!found) {
-            System.out.println("No rooms available at the moment.");
+// --- UC5: Booking Request Queue (Fairness & Ordering) ---
+class BookingQueue {
+    private Queue<Reservation> requestQueue = new LinkedList<>();
+
+    public void addRequest(Reservation request) {
+        requestQueue.add(request);
+        System.out.println("Queue Update: " + request + " added to the line.");
+    }
+
+    public void displayQueue() {
+        System.out.println("\n--- UC5: Current Booking Request Queue (FIFO) ---");
+        if (requestQueue.isEmpty()) {
+            System.out.println("No pending requests.");
+        } else {
+            for (Reservation res : requestQueue) {
+                System.out.println("[WAITING] " + res);
+            }
         }
     }
 }
@@ -95,30 +112,35 @@ class SearchService {
 public class Main {
     public static void main(String[] args) {
         // UC1: Startup
-        System.out.println("Welcome to Book My Stay App");
-        System.out.println("Hotel Booking Management System Starting...");
+        System.out.println("Welcome to Book My Stay App v5.0");
         System.out.println("-------------------------------------------");
 
-        // UC2 & UC3: Data Setup
+        // Setup Data
         RoomInventory hotelInventory = new RoomInventory();
         Map<String, Room> roomMap = new HashMap<>();
-
-        // Initialize Rooms
         roomMap.put("Single Room", new SingleRoom());
         roomMap.put("Double Room", new DoubleRoom());
-        roomMap.put("Suite Room", new SuiteRoom());
 
-        // Initialize Inventory (UC3)
         hotelInventory.addRoomType("Single Room", 5);
-        hotelInventory.addRoomType("Double Room", 0); // Set to 0 to test UC4 filter
-        hotelInventory.addRoomType("Suite Room", 2);
+        hotelInventory.addRoomType("Double Room", 3);
 
-        // UC4: Perform Search (Read-Only Access)
+        // UC4: Search
         SearchService searchService = new SearchService();
         searchService.searchAvailableRooms(hotelInventory, roomMap);
 
-        System.out.println("-------------------------------------------");
-        System.out.println("UC4: Search operation performed without state mutation.");
-        System.out.println("Use Case 4 completed successfully.");
+        // UC5: Booking Requests (Intake Mechanism)
+        System.out.println("\n--- UC5: Processing Incoming Requests ---");
+        BookingQueue bookingQueue = new BookingQueue();
+
+        // Simulating guests arriving at different times
+        bookingQueue.addRequest(new Reservation("Alice", "Single Room"));
+        bookingQueue.addRequest(new Reservation("Bob", "Double Room"));
+        bookingQueue.addRequest(new Reservation("Charlie", "Single Room"));
+
+        // Displaying the queue to prove order is preserved
+        bookingQueue.displayQueue();
+
+        System.out.println("\n-------------------------------------------");
+        System.out.println("UC5 Completed: Requests queued in arrival order.");
     }
 }
